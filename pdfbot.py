@@ -4,7 +4,7 @@ import logging
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ConversationHandler, CallbackContext
 
-TOKEN = "7695782694:AAGXXwOs9sCVA2BMTeLKkv9GpaYFgSrR-8c"  # Replace with your bot token
+TOKEN = "7695782694:AAHc3OiyQHI_B_gHUVPHwIDInRZEalCh2kU"  # Replace with your bot token
 
 PDF, SEARCH = range(2)
 
