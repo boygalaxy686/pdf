@@ -1,36 +1,43 @@
 import fitz  # PyMuPDF
 import os
+import logging
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, ConversationHandler
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ConversationHandler, CallbackContext
 
 TOKEN = "7695782694:AAGXXwOs9sCVA2BMTeLKkv9GpaYFgSrR-8c"  # Replace with your bot token
 
 PDF, SEARCH = range(2)
 
-def start(update: Update, context: CallbackContext) -> int:
-    update.message.reply_text("Please send me a PDF file.")
+# Enable logging
+logging.basicConfig(
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+)
+
+async def start(update: Update, context: CallbackContext) -> int:
+    await update.message.reply_text("Please send me a PDF file.")
     return PDF
 
-def handle_pdf(update: Update, context: CallbackContext) -> int:
+async def handle_pdf(update: Update, context: CallbackContext) -> int:
     file = update.message.document
     if file.mime_type != "application/pdf":
-        update.message.reply_text("This is not a PDF file. Please send a valid PDF.")
+        await update.message.reply_text("This is not a PDF file. Please send a valid PDF.")
         return PDF
 
-    file_path = os.path.join("downloaded.pdf")
-    file = context.bot.get_file(file.file_id)
-    file.download(file_path)
+    file_path = "downloaded.pdf"
+    new_file = await file.get_file()
+    await new_file.download_to_drive(file_path)
 
-    update.message.reply_text("PDF received! Now send me a word to search for.")
+    await update.message.reply_text("PDF received! Now send me a word to search for.")
     context.user_data["pdf_path"] = file_path  # Save file path
     return SEARCH
 
-def search_word(update: Update, context: CallbackContext) -> int:
+async def search_word(update: Update, context: CallbackContext) -> int:
     word = update.message.text.lower()
     pdf_path = context.user_data.get("pdf_path")
 
     if not pdf_path:
-        update.message.reply_text("No PDF found. Please send a PDF first.")
+        await update.message.reply_text("No PDF found. Please send a PDF first.")
         return PDF
 
     doc = fitz.open(pdf_path)
@@ -42,33 +49,33 @@ def search_word(update: Update, context: CallbackContext) -> int:
             found_pages.append(page_num + 1)  # Pages are 1-based
 
     if found_pages:
-        update.message.reply_text(f"'{word}' found on pages: {', '.join(map(str, found_pages))}")
+        await update.message.reply_text(f"'{word}' found on pages: {', '.join(map(str, found_pages))}")
     else:
-        update.message.reply_text(f"'{word}' not found in the PDF.")
+        await update.message.reply_text(f"'{word}' not found in the PDF.")
 
     os.remove(pdf_path)  # Delete file after processing
     return ConversationHandler.END
 
-def cancel(update: Update, context: CallbackContext) -> int:
-    update.message.reply_text("Process canceled.")
+async def cancel(update: Update, context: CallbackContext) -> int:
+    await update.message.reply_text("Process canceled.")
     return ConversationHandler.END
 
 def main():
-    updater = Updater(TOKEN, use_context=True)
-    dp = updater.dispatcher
+    app = Application.builder().token(TOKEN).build()
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
-            PDF: [MessageHandler(Filters.document.mime_type("application/pdf"), handle_pdf)],
-            SEARCH: [MessageHandler(Filters.text & ~Filters.command, search_word)],
+            PDF: [MessageHandler(filters.Document.MimeType("application/pdf"), handle_pdf)],
+            SEARCH: [MessageHandler(filters.TEXT & ~filters.COMMAND, search_word)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
 
-    dp.add_handler(conv_handler)
-    updater.start_polling()
-    updater.idle()
+    app.add_handler(conv_handler)
+
+    logging.info("Bot is running...")
+    app.run_polling()
 
 if __name__ == "__main__":
     main()
